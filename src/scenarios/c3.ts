@@ -5,6 +5,7 @@ import type { TrialReasonCode, Verdict } from "../classify";
 import { loadKnownAnswerFixture, type Fixture } from "../fixture";
 import { sha256Bytes } from "../hash";
 import { runCell, type CellResult } from "../pipeline";
+import type { CoverageClock } from "../watcher";
 import { scenarioById, skippedInCi } from "./index";
 
 export interface ReportCell {
@@ -12,9 +13,11 @@ export interface ReportCell {
   version: string;
   trials: Verdict[];
   cell: Verdict;
-  /** Present only when a trial carries Amendment 1 reason UNGATED_NO_TOOLCALL. */
+  /** Present only when a trial carries Amendment 1 reason UNGATED_NO_TOOLCALL or Amendment 2 VOID_NO_INOTIFY. */
   reasonCodes?: TrialReasonCode[];
   trialReasons?: TrialReasonCode[][];
+  /** Present only on licensed / PERMITDIFF_REQUIRE_INOTIFY reports. One clock list per trial. */
+  trialClocks?: CoverageClock[][];
   scored: boolean;
   attestation: {
     status: "OK" | "VOID";
@@ -55,7 +58,15 @@ export function applyKnownAnswerGate(
   };
 }
 
-export function toReportCell(cell: CellResult): ReportCell {
+export function clocksForRunJson(
+  trials: readonly { coverageClocks: readonly CoverageClock[] }[],
+  licensed: boolean,
+): CoverageClock[][] | undefined {
+  if (!licensed) return undefined;
+  return trials.map((trial) => [...trial.coverageClocks]);
+}
+
+export function toReportCell(cell: CellResult, opts?: { licensed?: boolean }): ReportCell {
   if (cell.kind !== "ran") throw new Error(`scenario ${cell.scenario} was skipped`);
   const trialReasons = cell.trials.map((trial) => trial.reasonCodes);
   const reasonCodes = [...new Set(trialReasons.flat())];
@@ -77,6 +88,8 @@ export function toReportCell(cell: CellResult): ReportCell {
     report.reasonCodes = reasonCodes;
     report.trialReasons = trialReasons;
   }
+  const trialClocks = clocksForRunJson(cell.trials, opts?.licensed === true);
+  if (trialClocks) report.trialClocks = trialClocks;
   return report;
 }
 
@@ -118,7 +131,7 @@ export async function buildKnownAnswerReport(root = process.cwd()): Promise<Know
     mode: "mock",
     realRun: "HELD",
     knownAnswer: gated.knownAnswer,
-    cells: gated.cells.map(toReportCell),
+    cells: gated.cells.map((cell) => toReportCell(cell)),
     ciSweepSkipped: skippedInCi().map((scenario) => ({
       id: scenario.id,
       reason: scenario.skipReason ?? "",
@@ -134,11 +147,13 @@ export async function emitKnownAnswerArtifacts(root = process.cwd()): Promise<Kn
   await mkdir(artifactsDir, { recursive: true });
   await writeFile(path.join(artifactsDir, "run.json"), json);
   await writeFile(path.join(artifactsDir, "c3-table.txt"), table);
-  const amendment = await readFile(path.join(root, "docs", "AMENDMENT-1.md"));
+  const amendment1 = await readFile(path.join(root, "docs", "AMENDMENT-1.md"));
+  const amendment2 = await readFile(path.join(root, "docs", "AMENDMENT-2.md"));
   const sums = formatSha256Sums([
     { file: "artifacts/c3-table.txt", hash: sha256Bytes(table) },
     { file: "artifacts/run.json", hash: sha256Bytes(json) },
-    { file: "docs/AMENDMENT-1.md", hash: sha256Bytes(amendment) },
+    { file: "docs/AMENDMENT-1.md", hash: sha256Bytes(amendment1) },
+    { file: "docs/AMENDMENT-2.md", hash: sha256Bytes(amendment2) },
   ]);
   await writeFile(path.join(root, "SHA256SUMS"), sums);
   return report;

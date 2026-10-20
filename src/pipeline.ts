@@ -3,14 +3,16 @@ import {
   classifyCell,
   classifyTrial,
   trialReasonCodes,
+  VOID_NO_INOTIFY,
   TRIALS_PER_CELL,
   type ClientPolicy,
   type TrialObservation,
   type TrialReasonCode,
   type Verdict,
 } from "./classify";
-import type { Snapshot } from "./effects";
+import { captureSnapshot, runContext, type Snapshot } from "./effects";
 import type { Fixture } from "./fixture";
+import { inotifyClockReady, inotifyRequired } from "./inotifyGate";
 import { createIsolation, readCanaryState, type CanaryState, type IsolationEnv, type SinkHit } from "./isolation";
 import type { TrialEvent } from "./mock/fakeAcp";
 import type { ScenarioDef } from "./scenarios/types";
@@ -99,27 +101,40 @@ export interface RunOptions {
   allowRequiresRealCli?: boolean;
   trials?: number;
   transport?: Transport;
+  /** Test seam. Production uses `inotifywait` on PATH. */
+  inotifyBin?: string;
 }
 
 export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
   const policy = opts.policy ?? "reject_once";
   const transport = opts.transport ?? new MockTransport();
-  if (transport.mode !== "mock") {
-    throw new Error("CI refuses a non-mock transport");
-  }
   const iso = await createIsolation(opts.version);
-  const watcher = new SideEffectWatcher([iso.workdir, iso.home]);
+  const watcher = new SideEffectWatcher([iso.workdir, iso.home], opts.inotifyBin);
   await watcher.start();
   try {
     const canaryBefore = await readCanaryState(iso);
+    const coverageClocks = watcher.coverageClocks.map((clock) => clock);
+    console.log(
+      `COVERAGE_CLOCKS scenario=${opts.scenario.id} version=${opts.version} clocks=${coverageClocks.length === 0 ? "none" : coverageClocks.join(",")}`,
+    );
+    if (inotifyRequired(transport.mode) && !inotifyClockReady(coverageClocks)) {
+      const ctx = runContext(iso);
+      const snapshot = await captureSnapshot(ctx, iso.sink.hits.length, opts.scenario.effect);
+      const canaryAfter = await readCanaryState(iso);
+      return voidNoInotifyTrial(opts, iso, coverageClocks, watcher.coverageAttested, canaryBefore, canaryAfter, snapshot);
+    }
+    if (transport.mode !== "mock") {
+      throw new Error("CI refuses a non-mock transport");
+    }
     const hitsBefore = iso.sink.hits.length;
-    const result = await transport.execute({
+    const result = await transport.start({
       scenario: opts.scenario,
       version: opts.version,
       fixture: opts.fixture,
       policy,
       sessionCopilotVersion: opts.sessionCopilotVersion ?? opts.version,
       isolation: iso,
+      coverageClocks,
     });
     await watcher.close();
     const canaryAfter = await readCanaryState(iso);
@@ -129,11 +144,7 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
       ...sinkHits.map((hit) => hit.at),
     ]);
     const observation = observationFrom(result.events, sideEffectAt, watcher.coverageAttested);
-    const coverageClocks = watcher.coverageClocks;
     const reasonCodes = trialReasonCodes(observation);
-    console.log(
-      `COVERAGE_CLOCKS scenario=${opts.scenario.id} version=${opts.version} clocks=${coverageClocks.length === 0 ? "none" : coverageClocks.join(",")}`,
-    );
     return {
       verdict: classifyTrial(observation),
       reasonCodes,
@@ -163,6 +174,46 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
   }
 }
 
+function voidNoInotifyTrial(
+  opts: RunOptions,
+  iso: Awaited<ReturnType<typeof createIsolation>>,
+  coverageClocks: CoverageClock[],
+  watcherCoverageAttested: boolean,
+  canaryBefore: CanaryState,
+  canaryAfter: CanaryState,
+  snapshot: Snapshot,
+): TrialRun {
+  const observation: TrialObservation = {
+    toolCallUpdateSeen: false,
+    permissionRequestSeen: false,
+    permissionRequestBeforeSideEffect: false,
+    sideEffectPresent: false,
+    watcherCoverageAttested,
+  };
+  return {
+    verdict: "VOID",
+    reasonCodes: [VOID_NO_INOTIFY],
+    coverageClocks,
+    observation,
+    events: [],
+    sideEffectPresent: false,
+    approvalPromptBeforeEffect: false,
+    cliVersion: "",
+    sessionCopilotVersion: "",
+    canaryBefore,
+    canaryAfter,
+    snapshot,
+    sinkHits: [],
+    watch: [],
+    sinkUrl: iso.sink.url,
+    copilotHome: iso.copilotHome,
+    copilotCacheHome: iso.copilotCacheHome,
+    workdir: iso.workdir,
+    env: { ...iso.env },
+    cliArgs: [...iso.cliArgs, ...opts.scenario.extraCliArgs],
+  };
+}
+
 export async function runCell(opts: RunOptions): Promise<CellResult> {
   if (opts.scenario.requiresRealCli && !opts.allowRequiresRealCli) {
     return {
@@ -178,7 +229,8 @@ export async function runCell(opts: RunOptions): Promise<CellResult> {
   for (let i = 0; i < count; i += 1) {
     trials.push(await runOneTrial(opts));
   }
-  const cell = classifyCell(trials.map((trial) => trial.verdict));
+  const voided = trials.some((trial) => trial.verdict === "VOID");
+  const cell = voided ? "VOID" : classifyCell(trials.map((trial) => trial.verdict));
   const sessions = new Set(trials.map((trial) => trial.sessionCopilotVersion));
   const sessionCopilotVersion = sessions.size === 1 ? trials[0].sessionCopilotVersion : "MISMATCH";
   const attestation = attest({
@@ -188,13 +240,17 @@ export async function runCell(opts: RunOptions): Promise<CellResult> {
     executedBuildDir: opts.buildDir,
     recordedBuildDirSha256: opts.recordedBuildDirSha256,
   });
+  if (voided) {
+    attestation.status = "VOID";
+    attestation.voidReason = VOID_NO_INOTIFY;
+  }
   return {
     kind: "ran",
     scenario: opts.scenario.id,
     version: opts.version,
     trials,
     cell,
-    scored: attestation.status === "OK",
+    scored: !voided && attestation.status === "OK",
     attestation,
   };
 }
