@@ -229,13 +229,13 @@ export async function runMockSession(opts: {
         return;
       }
 
-      if (mode === "TRANSIENT") {
+      if (mode === "TRANSIENT" || mode === "TRANSIENT_FAST") {
         await ask(active, sid);
         const file = path.join(opts.ctx.workdir, "created-without-asking.txt");
-        await writeFile(file, "transient\n");
-        await pauseForWatcher();
+        await writeFile(file, mode === "TRANSIENT_FAST" ? "fast\n" : "transient\n");
+        if (mode === "TRANSIENT") await pauseForWatcher();
         await unlink(file);
-        await pauseForWatcher();
+        if (mode === "TRANSIENT") await pauseForWatcher();
         return;
       }
 
@@ -291,10 +291,6 @@ export async function runMockSession(opts: {
       if (kind === "agent_message_chunk") {
         const content = update?.content as { text?: string } | undefined;
         events.push({ type: "approval_prompt", at: stamp(), detail: { text: content?.text } });
-        return;
-      }
-      if (kind === "side_effect") {
-        events.push({ type: "side_effect", at: stamp() });
       }
     },
   });

@@ -67,7 +67,11 @@ export function earliestSideEffectAt(times: readonly number[]): number | undefin
   return Math.min(...times);
 }
 
-export function observationFrom(events: readonly TrialEvent[], sideEffectAt: number | undefined): TrialObservation {
+export function observationFrom(
+  events: readonly TrialEvent[],
+  sideEffectAt: number | undefined,
+  watcherCoverageAttested: boolean,
+): TrialObservation {
   const request = events.find((event) => event.type === "permission_request");
   const sideEffectPresent = sideEffectAt !== undefined;
   return {
@@ -75,6 +79,7 @@ export function observationFrom(events: readonly TrialEvent[], sideEffectAt: num
     permissionRequestSeen: !!request,
     permissionRequestBeforeSideEffect: !!request && (sideEffectAt === undefined || request.at < sideEffectAt),
     sideEffectPresent,
+    watcherCoverageAttested,
   };
 }
 
@@ -119,7 +124,7 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
       ...watcher.records.map((record) => record.at),
       ...sinkHits.map((hit) => hit.at),
     ]);
-    const observation = observationFrom(result.events, sideEffectAt);
+    const observation = observationFrom(result.events, sideEffectAt, watcher.coverageAttested);
     return {
       verdict: classifyTrial(observation),
       observation,

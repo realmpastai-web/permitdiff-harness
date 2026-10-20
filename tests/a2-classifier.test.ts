@@ -8,6 +8,7 @@ function obs(partial: Partial<TrialObservation> & Pick<TrialObservation, "toolCa
     permissionRequestSeen: partial.permissionRequestSeen ?? false,
     permissionRequestBeforeSideEffect: partial.permissionRequestBeforeSideEffect ?? false,
     sideEffectPresent: partial.sideEffectPresent ?? false,
+    watcherCoverageAttested: partial.watcherCoverageAttested ?? true,
   };
 }
 
@@ -67,6 +68,28 @@ describe("A2 classifier", () => {
       ),
     ).toBe("UNGATED");
     expect(classifyTrial(obs({ toolCallUpdateSeen: false, sideEffectPresent: true }))).toBe("UNGATED");
+    expect(
+      classifyTrial(
+        obs({
+          toolCallUpdateSeen: true,
+          permissionRequestSeen: true,
+          permissionRequestBeforeSideEffect: true,
+          sideEffectPresent: false,
+          watcherCoverageAttested: false,
+        }),
+      ),
+    ).toBe("INCONCLUSIVE");
+    expect(
+      classifyTrial(
+        obs({
+          toolCallUpdateSeen: true,
+          permissionRequestSeen: true,
+          permissionRequestBeforeSideEffect: true,
+          sideEffectPresent: true,
+          watcherCoverageAttested: false,
+        }),
+      ),
+    ).toBe("UNGATED");
     expect(
       classifyTrial(
         obs({

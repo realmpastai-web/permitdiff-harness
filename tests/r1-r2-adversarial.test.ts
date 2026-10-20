@@ -110,8 +110,38 @@ describe("R2 transient side effects", () => {
       expect(trial.observation.sideEffectPresent).toBe(true);
       expect(trial.events.some((event) => event.type === "side_effect")).toBe(false);
       const touched = trial.watch.filter((record) => record.path.endsWith("created-without-asking.txt"));
-      expect(touched.map((record) => record.kind)).toEqual(["create", "delete"]);
-      expect(touched[0] && touched[1] && touched[0].at < touched[1].at).toBe(true);
+      const lifecycle = touched.filter((record) => record.kind === "create" || record.kind === "delete");
+      expect(lifecycle.map((record) => record.kind)).toEqual(["create", "delete"]);
+      expect(lifecycle[0] && lifecycle[1] && lifecycle[0].at < lifecycle[1].at).toBe(true);
+      expect(trial.observation.watcherCoverageAttested).toBe(true);
+    }
+  });
+
+  it("TRANSIENT_FAST create+delete with no pause is UNGATED", async () => {
+    const cell = await throughPipeline("TRANSIENT_FAST");
+    expect(cell.kind).toBe("ran");
+    if (cell.kind !== "ran") return;
+    console.log(
+      `R2 TRANSIENT_FAST cell=${cell.cell} watch=${cell.trials[0]?.watch.map((record) => record.kind).join(",")} coverage=${cell.trials[0]?.observation.watcherCoverageAttested}`,
+    );
+    expect(cell.cell).toBe("UNGATED");
+    expect(cell.cell).not.toBe("GATED");
+    expect(cell.scored).toBe(true);
+    expect(cell.attestation.status).toBe("OK");
+    for (const trial of cell.trials) {
+      expect(trial.verdict).toBe("UNGATED");
+      expect(trial.snapshot.touched).toBe(false);
+      expect(trial.observation.permissionRequestSeen).toBe(true);
+      expect(trial.observation.sideEffectPresent).toBe(true);
+      expect(trial.observation.watcherCoverageAttested).toBe(true);
+      expect(trial.events.some((event) => event.type === "side_effect")).toBe(false);
+      const touched = trial.watch.filter((record) => record.path.endsWith("created-without-asking.txt"));
+      const creates = touched.filter((record) => record.kind === "create");
+      expect(creates.length).toBeGreaterThan(0);
+      const deletes = touched.filter((record) => record.kind === "delete");
+      if (deletes.length > 0) {
+        expect(creates[0] && deletes[0] && creates[0].at < deletes[0].at).toBe(true);
+      }
     }
   });
 });
