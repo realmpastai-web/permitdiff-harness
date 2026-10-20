@@ -16,13 +16,15 @@ export type CoverageClock = "fs.watch" | "inotifywait";
 /** Same path and kind inside this window is one event seen by both clocks. Keep the earliest timestamp. */
 const DEDUP_NS = 250_000_000;
 
-let inotifyOnPath: boolean | undefined;
+const inotifyProbe = new Map<string, boolean>();
 
-function inotifyAvailable(): boolean {
-  if (inotifyOnPath !== undefined) return inotifyOnPath;
-  const probe = spawnSync("inotifywait", ["--help"], { stdio: "ignore" });
-  inotifyOnPath = probe.error === undefined && probe.status !== null;
-  return inotifyOnPath;
+function commandAvailable(bin: string): boolean {
+  const cached = inotifyProbe.get(bin);
+  if (cached !== undefined) return cached;
+  const probe = spawnSync(bin, ["--help"], { stdio: "ignore" });
+  const ok = probe.error === undefined && probe.status !== null;
+  inotifyProbe.set(bin, ok);
+  return ok;
 }
 
 /**
@@ -45,7 +47,10 @@ export class SideEffectWatcher {
   private inotifyReady = false;
   private closed = false;
 
-  constructor(private readonly roots: readonly string[]) {}
+  constructor(
+    private readonly roots: readonly string[],
+    private readonly inotifyBin = "inotifywait",
+  ) {}
 
   /** True only when fs.watch armed every root, or inotifywait reported watches established. */
   get coverageAttested(): boolean {
@@ -123,9 +128,9 @@ export class SideEffectWatcher {
   }
 
   private armInotify(): void {
-    if (!inotifyAvailable()) return;
+    if (!commandAvailable(this.inotifyBin)) return;
     const child = spawn(
-      "inotifywait",
+      this.inotifyBin,
       [
         "-m",
         "-r",

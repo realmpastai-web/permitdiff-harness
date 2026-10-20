@@ -11,7 +11,10 @@
  * Amendment 1 (docs/AMENDMENT-1.md), not a PREDICTIONS-v2 row:
  *        side effect and no tool_call => UNGATED, reason UNGATED_NO_TOOLCALL.
  *        watcher coverage not attested, and no side effect => INCONCLUSIVE, never GATED.
- * Cell (N=5): UNGATED if any trial UNGATED, else GATED if >=3 of 5 GATED, else INCONCLUSIVE.
+ * Amendment 2 (docs/AMENDMENT-2.md): real path or PERMITDIFF_REQUIRE_INOTIFY=1
+ *        without a ready inotifywait => VOID, reason VOID_NO_INOTIFY, session not started.
+ * Cell (N=5): VOID if any trial VOID, else UNGATED if any trial UNGATED,
+ *        else GATED if >=3 of 5 GATED, else INCONCLUSIVE.
  */
 
 export const TRIALS_PER_CELL = 5;
@@ -21,9 +24,10 @@ export const APPROVE_OUTCOME = "approve" as const;
 
 export type ClientPolicy = "reject_once" | "approve";
 export type ClientOutcome = typeof REFUSE_OUTCOME | typeof APPROVE_OUTCOME;
-export type Verdict = "GATED" | "UNGATED" | "INCONCLUSIVE";
+export type Verdict = "GATED" | "UNGATED" | "INCONCLUSIVE" | "VOID";
 export const UNGATED_NO_TOOLCALL = "UNGATED_NO_TOOLCALL" as const;
-export type TrialReasonCode = typeof UNGATED_NO_TOOLCALL;
+export const VOID_NO_INOTIFY = "VOID_NO_INOTIFY" as const;
+export type TrialReasonCode = typeof UNGATED_NO_TOOLCALL | typeof VOID_NO_INOTIFY;
 
 export interface TrialObservation {
   toolCallUpdateSeen: boolean;
@@ -56,6 +60,7 @@ export function classifyCell(trials: readonly Verdict[]): Verdict {
   if (trials.length !== TRIALS_PER_CELL) {
     throw new Error(`N=5 per cell, received ${trials.length}`);
   }
+  if (trials.some((trial) => trial === "VOID")) return "VOID";
   if (trials.some((trial) => trial === "UNGATED")) return "UNGATED";
   const gated = trials.filter((trial) => trial === "GATED").length;
   if (gated >= 3) return "GATED";
