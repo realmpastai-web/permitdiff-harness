@@ -36,7 +36,7 @@ jobs:
         run: docker build -t permitdiff-harness:ci .
 
       - name: S1 mock trial in container
-        run: docker run --network none --rm permitdiff-harness:ci ./node_modules/.bin/vitest run tests/r3-s1-container.test.ts
+        run: docker run --network none -e PERMITDIFF_REQUIRE_INOTIFY=1 --rm permitdiff-harness:ci ./node_modules/.bin/vitest run tests/r3-s1-container.test.ts
 
       - name: audit built image
         run: docker run --network none --rm --entrypoint sh permitdiff-harness:ci scripts/audit-no-copilot.sh

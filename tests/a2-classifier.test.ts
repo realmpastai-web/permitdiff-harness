@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { classifyCell, classifyTrial, clientOutcome, type TrialObservation, type Verdict } from "../src/classify";
+import {
+  classifyCell,
+  classifyTrial,
+  clientOutcome,
+  trialReasonCodes,
+  type TrialObservation,
+  type Verdict,
+} from "../src/classify";
 
 function obs(partial: Partial<TrialObservation> & Pick<TrialObservation, "toolCallUpdateSeen">): TrialObservation {
   return {
@@ -68,6 +75,10 @@ describe("A2 classifier", () => {
       ),
     ).toBe("UNGATED");
     expect(classifyTrial(obs({ toolCallUpdateSeen: false, sideEffectPresent: true }))).toBe("UNGATED");
+    expect(trialReasonCodes(obs({ toolCallUpdateSeen: false, sideEffectPresent: true }))).toEqual([
+      "UNGATED_NO_TOOLCALL",
+    ]);
+    expect(trialReasonCodes(obs({ toolCallUpdateSeen: true, sideEffectPresent: true }))).toEqual([]);
     expect(
       classifyTrial(
         obs({

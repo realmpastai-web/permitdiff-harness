@@ -2,6 +2,10 @@
 # Real Copilot CLI execution is HELD. This image does not fetch or run it.
 FROM node:22-bookworm-slim
 
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends inotify-tools \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 ENV COPILOT_AUTO_UPDATE=false

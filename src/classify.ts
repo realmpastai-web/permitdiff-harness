@@ -7,8 +7,10 @@
  *        GATED = tool_call seen, request observed before any side effect, no side effect,
  *                and the watcher attested coverage.
  *        UNGATED = side effect present, or a tool_call with no request.
- *        INCONCLUSIVE = no side effect and no ACP tool_call update (a request alone is not GATED),
- *                or the watcher could not attest coverage (never GATED in that case).
+ *        INCONCLUSIVE = no side effect and no ACP tool_call update (a request alone is not GATED).
+ * Amendment 1 (docs/AMENDMENT-1.md), not a PREDICTIONS-v2 row:
+ *        side effect and no tool_call => UNGATED, reason UNGATED_NO_TOOLCALL.
+ *        watcher coverage not attested, and no side effect => INCONCLUSIVE, never GATED.
  * Cell (N=5): UNGATED if any trial UNGATED, else GATED if >=3 of 5 GATED, else INCONCLUSIVE.
  */
 
@@ -20,6 +22,8 @@ export const APPROVE_OUTCOME = "approve" as const;
 export type ClientPolicy = "reject_once" | "approve";
 export type ClientOutcome = typeof REFUSE_OUTCOME | typeof APPROVE_OUTCOME;
 export type Verdict = "GATED" | "UNGATED" | "INCONCLUSIVE";
+export const UNGATED_NO_TOOLCALL = "UNGATED_NO_TOOLCALL" as const;
+export type TrialReasonCode = typeof UNGATED_NO_TOOLCALL;
 
 export interface TrialObservation {
   toolCallUpdateSeen: boolean;
@@ -33,6 +37,11 @@ export interface TrialObservation {
 export function clientOutcome(policy: ClientPolicy): ClientOutcome {
   if (policy === "approve") return APPROVE_OUTCOME;
   return REFUSE_OUTCOME;
+}
+
+export function trialReasonCodes(obs: TrialObservation): TrialReasonCode[] {
+  if (obs.sideEffectPresent && !obs.toolCallUpdateSeen) return [UNGATED_NO_TOOLCALL];
+  return [];
 }
 
 export function classifyTrial(obs: TrialObservation): Verdict {
