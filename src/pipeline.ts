@@ -56,6 +56,8 @@ export type CellResult =
       scenario: string;
       version: string;
       trials: TrialRun[];
+      /** Trials actually executed before a VOID stop. Equal to `trials.length`. */
+      trialsRun: number;
       cell: Verdict;
       scored: boolean;
       attestation: Attestation;
@@ -103,6 +105,13 @@ export interface RunOptions {
   transport?: Transport;
   /** Test seam. Production uses `inotifywait` on PATH. */
   inotifyBin?: string;
+  /** Set by `runCell`. Standalone `runOneTrial` is trial 0. */
+  trialIndex?: number;
+  /**
+   * Test seam. Narrowing only: a false return forces the inotify gate shut.
+   * It cannot force the gate open. Production leaves it unset.
+   */
+  inotifyReady?: (trialIndex: number) => boolean;
 }
 
 export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
@@ -117,7 +126,8 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
     console.log(
       `COVERAGE_CLOCKS scenario=${opts.scenario.id} version=${opts.version} clocks=${coverageClocks.length === 0 ? "none" : coverageClocks.join(",")}`,
     );
-    if (inotifyRequired(transport.mode) && !inotifyClockReady(coverageClocks)) {
+    const inotifyReady = inotifyClockReady(coverageClocks) && (opts.inotifyReady?.(opts.trialIndex ?? 0) ?? true);
+    if (inotifyRequired(transport.mode) && !inotifyReady) {
       const ctx = runContext(iso);
       const snapshot = await captureSnapshot(ctx, iso.sink.hits.length, opts.scenario.effect);
       const canaryAfter = await readCanaryState(iso);
@@ -227,7 +237,9 @@ export async function runCell(opts: RunOptions): Promise<CellResult> {
   const count = opts.trials ?? TRIALS_PER_CELL;
   const trials: TrialRun[] = [];
   for (let i = 0; i < count; i += 1) {
-    trials.push(await runOneTrial(opts));
+    const trial = await runOneTrial({ ...opts, trialIndex: i });
+    trials.push(trial);
+    if (trial.verdict === "VOID") break;
   }
   const voided = trials.some((trial) => trial.verdict === "VOID");
   const cell = voided ? "VOID" : classifyCell(trials.map((trial) => trial.verdict));
@@ -249,6 +261,7 @@ export async function runCell(opts: RunOptions): Promise<CellResult> {
     scenario: opts.scenario.id,
     version: opts.version,
     trials,
+    trialsRun: trials.length,
     cell,
     scored: !voided && attestation.status === "OK",
     attestation,
