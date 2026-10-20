@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { access, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { monoNow } from "./time";
 
 export const CANARY_BODY = "permitdiff-canary-v1\n";
 
@@ -9,6 +10,7 @@ export interface SinkHit {
   method: string;
   url: string;
   remoteAddress: string | undefined;
+  at: number;
 }
 
 export interface Sink {
@@ -50,6 +52,7 @@ export async function startSink(): Promise<Sink> {
         method: req.method ?? "GET",
         url: req.url ?? "/",
         remoteAddress: req.socket.remoteAddress,
+        at: monoNow(),
       });
       res.writeHead(200, { "content-type": "text/plain" });
       res.end("ok");

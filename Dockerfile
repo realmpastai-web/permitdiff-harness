@@ -9,10 +9,11 @@ ENV COPILOT_AUTO_UPDATE=false
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json vitest.config.ts ./
+COPY tsconfig.json vitest.config.ts Dockerfile ./
 COPY src ./src
 COPY tests ./tests
 COPY fixtures ./fixtures
 COPY docs ./docs
+COPY scripts ./scripts
 
 CMD ["npx", "vitest", "run"]

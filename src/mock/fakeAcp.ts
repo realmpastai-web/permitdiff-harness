@@ -1,8 +1,11 @@
+import { unlink, writeFile } from "node:fs/promises";
 import net from "node:net";
+import path from "node:path";
 import { clientOutcome, type ClientPolicy } from "../classify";
 import { performEffect, type RunContext } from "../effects";
-import { lookupCell, type Fixture } from "../fixture";
+import { lookupCell, serverMode, type Fixture } from "../fixture";
 import type { ScenarioDef } from "../scenarios/types";
+import { monoNow, pauseForWatcher } from "../time";
 
 export const MOCK_APPROVAL_PROMPT = "MOCK_APPROVAL_PROMPT: approval required before touch";
 
@@ -123,11 +126,7 @@ export async function runMockSession(opts: {
   policy: ClientPolicy;
 }): Promise<MockSessionResult> {
   const events: TrialEvent[] = [];
-  let tick = 0;
-  const stamp = (): number => {
-    tick += 1;
-    return tick;
-  };
+  const stamp = (): number => monoNow();
   let sessionCopilotVersion = "";
 
   const sockets = new Set<net.Socket>();
@@ -159,10 +158,16 @@ export async function runMockSession(opts: {
       onNote: () => undefined,
     });
 
-    async function performPrompt(active: NdjsonPeer, sid: string): Promise<void> {
-      const row = lookupCell(opts.fixture, opts.scenario.id, opts.version);
-      if (row?.verdict === "INCONCLUSIVE") return;
+    async function ask(active: NdjsonPeer, sid: string): Promise<string> {
+      const result = (await active.request("session/request_permission", {
+        sessionId: sid,
+        toolCallId: "call-1",
+        options: [clientOutcome("reject_once"), clientOutcome("approve")],
+      })) as { outcome?: string };
+      return result.outcome ?? "";
+    }
 
+    function emitToolCalls(active: NdjsonPeer, sid: string): void {
       const calls = opts.scenario.effect === "parallel-writes" ? 2 : 1;
       for (let i = 0; i < calls; i += 1) {
         active.send({
@@ -179,7 +184,6 @@ export async function runMockSession(opts: {
           },
         });
       }
-
       if (opts.scenario.id === "S7") {
         active.send({
           method: "session/update",
@@ -192,29 +196,50 @@ export async function runMockSession(opts: {
           },
         });
       }
+    }
 
-      const gated = row?.verdict === "GATED";
-      if (gated) {
-        const result = (await active.request("session/request_permission", {
-          sessionId: sid,
-          toolCallId: "call-1",
-          options: [clientOutcome("reject_once"), clientOutcome("approve")],
-        })) as { outcome?: string };
-        if (result.outcome === "approve") {
-          await performEffect(opts.scenario.effect, opts.ctx);
-          active.send({
-            method: "session/update",
-            params: { sessionId: sid, update: { sessionUpdate: "side_effect" } },
-          });
-        }
+    async function performPrompt(active: NdjsonPeer, sid: string): Promise<void> {
+      const mode = serverMode(lookupCell(opts.fixture, opts.scenario.id, opts.version));
+      if (mode === "INCONCLUSIVE") return;
+
+      // The real CLI does not emit a side_effect event. Timing comes from the watcher.
+      if (mode !== "ASK_NO_TOOLCALL") emitToolCalls(active, sid);
+
+      if (mode === "GATED") {
+        const outcome = await ask(active, sid);
+        if (outcome === "approve") await performEffect(opts.scenario.effect, opts.ctx);
+        return;
+      }
+
+      if (mode === "ASK_THEN_EXECUTE") {
+        await ask(active, sid);
+        await performEffect(opts.scenario.effect, opts.ctx);
+        return;
+      }
+
+      if (mode === "EXECUTE_THEN_ASK") {
+        await performEffect(opts.scenario.effect, opts.ctx);
+        await pauseForWatcher();
+        await ask(active, sid);
+        return;
+      }
+
+      if (mode === "ASK_NO_TOOLCALL") {
+        await ask(active, sid);
+        return;
+      }
+
+      if (mode === "TRANSIENT") {
+        await ask(active, sid);
+        const file = path.join(opts.ctx.workdir, "created-without-asking.txt");
+        await writeFile(file, "transient\n");
+        await pauseForWatcher();
+        await unlink(file);
+        await pauseForWatcher();
         return;
       }
 
       await performEffect(opts.scenario.effect, opts.ctx);
-      active.send({
-        method: "session/update",
-        params: { sessionId: sid, update: { sessionUpdate: "side_effect" } },
-      });
     }
   });
 

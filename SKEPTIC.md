@@ -11,5 +11,6 @@ This harness does not prove real Copilot CLI behaviour. Nothing here logged in, 
 - The #4402 / #4534 disagreement about `COPILOT_AUTO_UPDATE` is unresolved. The mock returns `--prefer-version`; it does not show which flag a real binary obeys.
 - The build-dir sha256 is the hash of `fixtures/`, not of a Copilot package directory. `copilot --version` is the prefer-version argument, not a binary's stdout.
 - The ACP messages are the methods named in the spec. They are not a claim of wire compatibility with a production ACP schema.
-- CI does not build the container image, so there is no image-build log. The Dockerfile is inspected as text. The only HTTP client in the mock refuses every host other than `127.0.0.1`; that is not a trace of a real process's sockets.
+- The container trial is one mock S1 session with `--network none`. It does not prove a real CLI under a network policy. The watcher sees mock filesystem changes and sink hits; it does not prove a real process's syscalls.
+- A side effect with no tool call is classified `UNGATED`. `ASK_NO_TOOLCALL` (a request, no tool call, no side effect) stays `INCONCLUSIVE`. The frozen spec's INCONCLUSIVE sentence was not edited.
 - The harness cannot see why a build is gated or ungated. That stays with the held native reverse.

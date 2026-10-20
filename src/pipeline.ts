@@ -13,6 +13,7 @@ import { createIsolation, readCanaryState, type CanaryState, type IsolationEnv, 
 import type { TrialEvent } from "./mock/fakeAcp";
 import type { ScenarioDef } from "./scenarios/types";
 import { MockTransport, type Transport } from "./transport";
+import { SideEffectWatcher, type WatchRecord } from "./watcher";
 
 export interface TrialRun {
   verdict: Verdict;
@@ -26,6 +27,8 @@ export interface TrialRun {
   canaryAfter: CanaryState;
   snapshot: Snapshot;
   sinkHits: SinkHit[];
+  watch: WatchRecord[];
+  sideEffectAt?: number;
   sinkUrl: string;
   copilotHome: string;
   copilotCacheHome: string;
@@ -52,21 +55,25 @@ export type CellResult =
       attestation: Attestation;
     };
 
-export function approvalPromptBeforeEffect(events: readonly TrialEvent[], sideEffectPresent: boolean): boolean {
+export function approvalPromptBeforeEffect(events: readonly TrialEvent[], sideEffectAt: number | undefined): boolean {
   const prompt = events.find((event) => event.type === "approval_prompt");
   if (!prompt) return false;
-  if (!sideEffectPresent) return true;
-  const effect = events.find((event) => event.type === "side_effect");
-  return !!effect && prompt.at < effect.at;
+  if (sideEffectAt === undefined) return true;
+  return prompt.at < sideEffectAt;
 }
 
-export function observationFrom(events: readonly TrialEvent[], sideEffectPresent: boolean): TrialObservation {
+export function earliestSideEffectAt(times: readonly number[]): number | undefined {
+  if (times.length === 0) return undefined;
+  return Math.min(...times);
+}
+
+export function observationFrom(events: readonly TrialEvent[], sideEffectAt: number | undefined): TrialObservation {
   const request = events.find((event) => event.type === "permission_request");
-  const effect = events.find((event) => event.type === "side_effect");
+  const sideEffectPresent = sideEffectAt !== undefined;
   return {
     toolCallUpdateSeen: events.some((event) => event.type === "tool_call"),
     permissionRequestSeen: !!request,
-    permissionRequestBeforeSideEffect: !!request && (!sideEffectPresent || (!!effect && request.at < effect.at)),
+    permissionRequestBeforeSideEffect: !!request && (sideEffectAt === undefined || request.at < sideEffectAt),
     sideEffectPresent,
   };
 }
@@ -92,8 +99,11 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
     throw new Error("CI refuses a non-mock transport");
   }
   const iso = await createIsolation(opts.version);
+  const watcher = new SideEffectWatcher([iso.workdir, iso.home]);
+  await watcher.start();
   try {
     const canaryBefore = await readCanaryState(iso);
+    const hitsBefore = iso.sink.hits.length;
     const result = await transport.execute({
       scenario: opts.scenario,
       version: opts.version,
@@ -102,20 +112,28 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
       sessionCopilotVersion: opts.sessionCopilotVersion ?? opts.version,
       isolation: iso,
     });
+    await watcher.close();
     const canaryAfter = await readCanaryState(iso);
-    const observation = observationFrom(result.events, result.sideEffectPresent);
+    const sinkHits = iso.sink.hits.slice(hitsBefore).map((hit) => ({ ...hit }));
+    const sideEffectAt = earliestSideEffectAt([
+      ...watcher.records.map((record) => record.at),
+      ...sinkHits.map((hit) => hit.at),
+    ]);
+    const observation = observationFrom(result.events, sideEffectAt);
     return {
       verdict: classifyTrial(observation),
       observation,
       events: result.events,
-      sideEffectPresent: result.sideEffectPresent,
-      approvalPromptBeforeEffect: approvalPromptBeforeEffect(result.events, result.sideEffectPresent),
+      sideEffectPresent: observation.sideEffectPresent,
+      approvalPromptBeforeEffect: approvalPromptBeforeEffect(result.events, sideEffectAt),
       cliVersion: result.cliVersion,
       sessionCopilotVersion: result.sessionCopilotVersion,
       canaryBefore,
       canaryAfter,
       snapshot: result.snapshot,
-      sinkHits: iso.sink.hits.map((hit) => ({ ...hit })),
+      sinkHits,
+      watch: watcher.records.map((record) => ({ ...record })),
+      ...(sideEffectAt === undefined ? {} : { sideEffectAt }),
       sinkUrl: iso.sink.url,
       copilotHome: iso.copilotHome,
       copilotCacheHome: iso.copilotCacheHome,
@@ -124,6 +142,7 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
       cliArgs: [...iso.cliArgs, ...opts.scenario.extraCliArgs],
     };
   } finally {
+    await watcher.close();
     await iso.close();
   }
 }

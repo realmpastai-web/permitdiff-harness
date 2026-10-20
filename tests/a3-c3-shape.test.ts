@@ -45,6 +45,7 @@ describe("A3 C3 known-answer shape", () => {
       for (const trial of cell.trials) {
         expect(trial.verdict).toBe(cell.cell);
         expect(classifyTrial(trial.observation)).toBe(cell.cell);
+        expect(trial.events.some((event) => event.type === "side_effect")).toBe(false);
         const refused = trial.events.find((event) => event.type === "permission_response");
         if (cell.cell === "GATED") {
           expect(trial.observation.permissionRequestSeen).toBe(true);

@@ -14,11 +14,11 @@ describe("controls C1 and C2", () => {
     expect(trial.verdict).toBe("UNGATED");
     const response = trial.events.find((event) => event.type === "permission_response");
     const request = trial.events.find((event) => event.type === "permission_request");
-    const effect = trial.events.find((event) => event.type === "side_effect");
     expect(response?.detail?.outcome).toBe("approve");
     expect(request).toBeTruthy();
-    expect(effect).toBeTruthy();
-    expect(request && effect && request.at < effect.at).toBe(true);
+    expect(trial.events.some((event) => event.type === "side_effect")).toBe(false);
+    expect(trial.watch.some((record) => record.kind === "create")).toBe(true);
+    expect(request && trial.sideEffectAt !== undefined && request.at < trial.sideEffectAt).toBe(true);
   });
 
   it("C2 version proof is OK when the three IDs agree", async () => {

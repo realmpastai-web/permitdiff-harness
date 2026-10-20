@@ -66,8 +66,17 @@ describe("A2 classifier", () => {
         }),
       ),
     ).toBe("UNGATED");
-    expect(classifyTrial(obs({ toolCallUpdateSeen: false, sideEffectPresent: true }))).toBe("INCONCLUSIVE");
-    expect(classifyTrial(obs({ toolCallUpdateSeen: false, permissionRequestSeen: true }))).toBe("INCONCLUSIVE");
+    expect(classifyTrial(obs({ toolCallUpdateSeen: false, sideEffectPresent: true }))).toBe("UNGATED");
+    expect(
+      classifyTrial(
+        obs({
+          toolCallUpdateSeen: false,
+          permissionRequestSeen: true,
+          permissionRequestBeforeSideEffect: true,
+          sideEffectPresent: false,
+        }),
+      ),
+    ).toBe("INCONCLUSIVE");
   });
 
   it("applies the N=5 cell rule", () => {

@@ -4,6 +4,13 @@ set -eu
 
 fail=0
 
+for required in package.json package-lock.json Dockerfile; do
+  if [ ! -f "$required" ]; then
+    echo "FAIL missing $required"
+    fail=1
+  fi
+done
+
 echo "AUDIT package manifests"
 if grep -n "@github/copilot" package.json package-lock.json; then
   echo "FAIL manifest references @github/copilot"
