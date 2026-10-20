@@ -1,0 +1,8 @@
+# Q1 Does Copilot CLI run a cached build newer than the npm install? YES (public reports, 2026-10-20)
+- #4402: npm bin/copilot "is a loader, not a version pin"; same path ran 1.0.77 then 1.0.78 "101 seconds apart" while npm packages "continued to declare 1.0.77". --no-auto-update, COPILOT_AUTO_UPDATE=false, CI=true all still printed 1.0.78; only undocumented --prefer-version 1.0.77 pinned.
+- #4534: cached prerelease 1.0.81-5 re-exec'd over npm stable 1.0.80 even with autoUpdate:false; "re-exec into the newer cached build happens before settings are read"; COPILOT_AUTO_UPDATE=false gave 1.0.80. CONTRADICTS #4402 on the env var (platform/version-dependent, UNPROVEN which).
+- #4537 + comment: bisected via COPILOT_CLI_DIST_DIR on ~/.copilot/pkg/linux-x64/<ver>; commenter: npm wrapper "always resolves to the latest installed native binary"; ran node ~/.copilot/pkg/darwin-arm64/1.0.80/app.js.
+- #2615 autoUpdate in config ignored since 1.0.4; #4728 auto-updater rewrites the copilot.exe it was launched from; #3328 auto-update applied during startup.
+- Docs: cli-config-dir-reference autoUpdate default true ("download CLI updates ... at the start of each session"); cache dir Linux $XDG_CACHE_HOME/copilot or ~/.cache/copilot; COPILOT_CACHE_HOME overrides; cli-command-reference --no-auto-update, COPILOT_AUTO_UPDATE.
+- Our phase1: npm-loader.js (identical in 3 versions) has no re-exec/cache logic, so the redirect is inside the platform package (consistent with #4534 running the platform binary directly).
+Consequence: PermitDiff attests EXECUTED bytes, identified by observed version (copilot --version + session.start copilotVersion) and sha256 of the build dir actually run, never by npm version.

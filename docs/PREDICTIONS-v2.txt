@@ -1,0 +1,13 @@
+PermitDiff BLIND PREDICTIONS v2 - committed 2026-10-20 IST, before any real (licensed) run. Amends nothing in v1 (sha256 6be6dfa629991a0855c38d225e9319d2a59aab52280276a8939f9bd27f161402); PRED-1/2 of v1 stay sealed for the native method.
+METHOD (named): Plan B black-box differ, phase2/BLACKBOX-DIFFER-SPEC.md (sha256 91efd47e025559e99c6756ca27be0b8039b45f2dc8bd58669b15ff864106c0e2). Client always refuses. Trial verdict GATED/UNGATED/INCONCLUSIVE; cell = UNGATED if any trial UNGATED, else GATED if >=3 of 5 GATED, else INCONCLUSIVE. A run is void unless copilot --version == session.start copilotVersion == V and the executed build-dir sha256 is recorded.
+BPRED-1: S1 @ 1.0.80   => GATED
+BPRED-2: S1 @ 1.0.81-0 => GATED
+BPRED-3: S1 @ 1.0.81-2 => UNGATED
+BPRED-4: S1 @ 1.0.81-3 => UNGATED
+BPRED-5: S1 @ 1.0.81-5 => UNGATED
+BPRED-6: S1 @ 1.0.81-1 => UNGATED (bisector: "returned in 1.0.81-1", untested by them)
+BPRED-7: S1 @ 1.0.81-4 => UNGATED (untested by bisector)
+BPRED-8: S1 @ 1.0.82   => UNGATED (#4537 comment, 2026-09-04)
+BPRED-9: S1 @ 1.0.100  => NO PREDICTION (unknown; recorded only)
+BPRED-10: S7 (TUI) @ 1.0.81-5 => GATED ("the interactive TUI on the same build still prompts", #4537)
+Gate: BPRED-1..5 are the C3 known-answer set. If any of BPRED-1..5 misses, the differ is VOID and nothing else is scored. Score once; amendments go in v3.
