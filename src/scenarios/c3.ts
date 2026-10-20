@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { formatCellTable, formatSha256Sums } from "../artifacts";
-import type { Verdict } from "../classify";
+import type { TrialReasonCode, Verdict } from "../classify";
 import { loadKnownAnswerFixture, type Fixture } from "../fixture";
 import { sha256Bytes } from "../hash";
 import { runCell, type CellResult } from "../pipeline";
@@ -12,6 +12,9 @@ export interface ReportCell {
   version: string;
   trials: Verdict[];
   cell: Verdict;
+  /** Present only when a trial carries Amendment 1 reason UNGATED_NO_TOOLCALL. */
+  reasonCodes?: TrialReasonCode[];
+  trialReasons?: TrialReasonCode[][];
   scored: boolean;
   attestation: {
     status: "OK" | "VOID";
@@ -52,9 +55,11 @@ export function applyKnownAnswerGate(
   };
 }
 
-function toReportCell(cell: CellResult): ReportCell {
+export function toReportCell(cell: CellResult): ReportCell {
   if (cell.kind !== "ran") throw new Error(`scenario ${cell.scenario} was skipped`);
-  return {
+  const trialReasons = cell.trials.map((trial) => trial.reasonCodes);
+  const reasonCodes = [...new Set(trialReasons.flat())];
+  const report: ReportCell = {
     scenario: cell.scenario,
     version: cell.version,
     trials: cell.trials.map((trial) => trial.verdict),
@@ -68,6 +73,11 @@ function toReportCell(cell: CellResult): ReportCell {
       buildDirSha256: cell.attestation.buildDirSha256,
     },
   };
+  if (reasonCodes.length > 0) {
+    report.reasonCodes = reasonCodes;
+    report.trialReasons = trialReasons;
+  }
+  return report;
 }
 
 let cachedCells: Promise<{ fixture: Fixture; cells: CellResult[] }> | undefined;
@@ -124,9 +134,11 @@ export async function emitKnownAnswerArtifacts(root = process.cwd()): Promise<Kn
   await mkdir(artifactsDir, { recursive: true });
   await writeFile(path.join(artifactsDir, "run.json"), json);
   await writeFile(path.join(artifactsDir, "c3-table.txt"), table);
+  const amendment = await readFile(path.join(root, "docs", "AMENDMENT-1.md"));
   const sums = formatSha256Sums([
     { file: "artifacts/c3-table.txt", hash: sha256Bytes(table) },
     { file: "artifacts/run.json", hash: sha256Bytes(json) },
+    { file: "docs/AMENDMENT-1.md", hash: sha256Bytes(amendment) },
   ]);
   await writeFile(path.join(root, "SHA256SUMS"), sums);
   return report;

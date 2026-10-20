@@ -25,6 +25,9 @@ describe("A7 SHA256SUMS", () => {
     const sums = await readFile("SHA256SUMS", "utf8");
     expect(sums).toContain("artifacts/run.json");
     expect(sums).toContain("artifacts/c3-table.txt");
+    expect(sums).toContain("docs/AMENDMENT-1.md");
+    expect(sums).toContain("7b79ed2d84f72717b8f78afba8c20f65ee0e9c48e8eb5d0efbf6b4b1e7d9de42  artifacts/c3-table.txt");
+    expect(sums).toContain("7163696d1d4529bdd2d4c232d7feea68c3b9e6715a91228774a01b89c0d28e57  artifacts/run.json");
     console.log(sums);
   });
 });

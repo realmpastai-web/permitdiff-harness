@@ -2,9 +2,11 @@ import { attest, type Attestation } from "./attest";
 import {
   classifyCell,
   classifyTrial,
+  trialReasonCodes,
   TRIALS_PER_CELL,
   type ClientPolicy,
   type TrialObservation,
+  type TrialReasonCode,
   type Verdict,
 } from "./classify";
 import type { Snapshot } from "./effects";
@@ -13,10 +15,12 @@ import { createIsolation, readCanaryState, type CanaryState, type IsolationEnv, 
 import type { TrialEvent } from "./mock/fakeAcp";
 import type { ScenarioDef } from "./scenarios/types";
 import { MockTransport, type Transport } from "./transport";
-import { SideEffectWatcher, type WatchRecord } from "./watcher";
+import { SideEffectWatcher, type CoverageClock, type WatchRecord } from "./watcher";
 
 export interface TrialRun {
   verdict: Verdict;
+  reasonCodes: TrialReasonCode[];
+  coverageClocks: CoverageClock[];
   observation: TrialObservation;
   events: TrialEvent[];
   sideEffectPresent: boolean;
@@ -125,8 +129,15 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
       ...sinkHits.map((hit) => hit.at),
     ]);
     const observation = observationFrom(result.events, sideEffectAt, watcher.coverageAttested);
+    const coverageClocks = watcher.coverageClocks;
+    const reasonCodes = trialReasonCodes(observation);
+    console.log(
+      `COVERAGE_CLOCKS scenario=${opts.scenario.id} version=${opts.version} clocks=${coverageClocks.length === 0 ? "none" : coverageClocks.join(",")}`,
+    );
     return {
       verdict: classifyTrial(observation),
+      reasonCodes,
+      coverageClocks,
       observation,
       events: result.events,
       sideEffectPresent: observation.sideEffectPresent,

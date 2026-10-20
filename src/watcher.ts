@@ -11,7 +11,10 @@ export interface WatchRecord {
   at: number;
 }
 
-const DEDUP_NS = 5_000_000;
+export type CoverageClock = "fs.watch" | "inotifywait";
+
+/** Same path and kind inside this window is one event seen by both clocks. Keep the earliest timestamp. */
+const DEDUP_NS = 250_000_000;
 
 let inotifyOnPath: boolean | undefined;
 
@@ -46,7 +49,15 @@ export class SideEffectWatcher {
 
   /** True only when fs.watch armed every root, or inotifywait reported watches established. */
   get coverageAttested(): boolean {
-    return (this.fsArmed && !this.watchFailed) || this.inotifyReady;
+    return this.coverageClocks.length > 0;
+  }
+
+  /** Clocks that attested coverage. Order is fs.watch, then inotifywait. */
+  get coverageClocks(): CoverageClock[] {
+    const clocks: CoverageClock[] = [];
+    if (this.fsArmed && !this.watchFailed) clocks.push("fs.watch");
+    if (this.inotifyReady) clocks.push("inotifywait");
+    return clocks;
   }
 
   async start(): Promise<void> {
@@ -74,6 +85,22 @@ export class SideEffectWatcher {
     }
     this.fsArmed = this.roots.length > 0 && armed === this.roots.length;
     this.armInotify();
+    await this.waitForInotify();
+  }
+
+  private waitForInotify(): Promise<void> {
+    if (!this.inotify) return Promise.resolve();
+    const deadline = Date.now() + 2000;
+    return new Promise((resolve) => {
+      const tick = (): void => {
+        if (this.inotifyReady || !this.inotify || this.inotify.exitCode !== null || Date.now() >= deadline) {
+          resolve();
+          return;
+        }
+        setTimeout(tick, 20);
+      };
+      tick();
+    });
   }
 
   async close(): Promise<void> {

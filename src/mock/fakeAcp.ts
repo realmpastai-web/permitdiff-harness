@@ -203,7 +203,7 @@ export async function runMockSession(opts: {
       if (mode === "INCONCLUSIVE") return;
 
       // The real CLI does not emit a side_effect event. Timing comes from the watcher.
-      if (mode !== "ASK_NO_TOOLCALL") emitToolCalls(active, sid);
+      if (mode !== "ASK_NO_TOOLCALL" && mode !== "EFFECT_NO_TOOLCALL") emitToolCalls(active, sid);
 
       if (mode === "GATED") {
         const outcome = await ask(active, sid);
@@ -226,6 +226,11 @@ export async function runMockSession(opts: {
 
       if (mode === "ASK_NO_TOOLCALL") {
         await ask(active, sid);
+        return;
+      }
+
+      if (mode === "EFFECT_NO_TOOLCALL") {
+        await performEffect(opts.scenario.effect, opts.ctx);
         return;
       }
 

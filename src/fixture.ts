@@ -9,6 +9,7 @@ export const SERVER_MODES = [
   "ASK_THEN_EXECUTE",
   "EXECUTE_THEN_ASK",
   "ASK_NO_TOOLCALL",
+  "EFFECT_NO_TOOLCALL",
   "TRANSIENT",
   "TRANSIENT_FAST",
 ] as const;
