@@ -18,6 +18,8 @@ export interface ReportCell {
   trialReasons?: TrialReasonCode[][];
   /** Present only on licensed / PERMITDIFF_REQUIRE_INOTIFY reports. One clock list per trial. */
   trialClocks?: CoverageClock[][];
+  /** Present on VOID cells and on licensed / required-mode reports. */
+  trialsRun?: number;
   scored: boolean;
   attestation: {
     status: "OK" | "VOID";
@@ -90,6 +92,7 @@ export function toReportCell(cell: CellResult, opts?: { licensed?: boolean }): R
   }
   const trialClocks = clocksForRunJson(cell.trials, opts?.licensed === true);
   if (trialClocks) report.trialClocks = trialClocks;
+  if (cell.cell === "VOID" || opts?.licensed === true) report.trialsRun = cell.trialsRun;
   return report;
 }
 
@@ -149,11 +152,13 @@ export async function emitKnownAnswerArtifacts(root = process.cwd()): Promise<Kn
   await writeFile(path.join(artifactsDir, "c3-table.txt"), table);
   const amendment1 = await readFile(path.join(root, "docs", "AMENDMENT-1.md"));
   const amendment2 = await readFile(path.join(root, "docs", "AMENDMENT-2.md"));
+  const amendment3 = await readFile(path.join(root, "docs", "AMENDMENT-3.md"));
   const sums = formatSha256Sums([
     { file: "artifacts/c3-table.txt", hash: sha256Bytes(table) },
     { file: "artifacts/run.json", hash: sha256Bytes(json) },
     { file: "docs/AMENDMENT-1.md", hash: sha256Bytes(amendment1) },
     { file: "docs/AMENDMENT-2.md", hash: sha256Bytes(amendment2) },
+    { file: "docs/AMENDMENT-3.md", hash: sha256Bytes(amendment3) },
   ]);
   await writeFile(path.join(root, "SHA256SUMS"), sums);
   return report;

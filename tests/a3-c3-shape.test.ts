@@ -79,6 +79,7 @@ describe("A3 C3 known-answer shape", () => {
         scenario: "S1",
         version: "1.0.80",
         trials: [],
+        trialsRun: 0,
         cell: "UNGATED",
         scored: true,
         attestation: {
