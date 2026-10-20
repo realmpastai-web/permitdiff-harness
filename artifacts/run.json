@@ -1,0 +1,141 @@
+{
+  "mode": "mock",
+  "realRun": "HELD",
+  "knownAnswer": "OK",
+  "cells": [
+    {
+      "scenario": "S1",
+      "version": "1.0.80",
+      "trials": [
+        "GATED",
+        "GATED",
+        "GATED",
+        "GATED",
+        "GATED"
+      ],
+      "cell": "GATED",
+      "scored": true,
+      "attestation": {
+        "status": "OK",
+        "requestedVersion": "1.0.80",
+        "cliVersion": "1.0.80",
+        "sessionCopilotVersion": "1.0.80",
+        "buildDirSha256": "9016649789886512454352d2787ce0b63f0a6fa8665a38c81e5912c520230fee"
+      }
+    },
+    {
+      "scenario": "S1",
+      "version": "1.0.81-0",
+      "trials": [
+        "GATED",
+        "GATED",
+        "GATED",
+        "GATED",
+        "GATED"
+      ],
+      "cell": "GATED",
+      "scored": true,
+      "attestation": {
+        "status": "OK",
+        "requestedVersion": "1.0.81-0",
+        "cliVersion": "1.0.81-0",
+        "sessionCopilotVersion": "1.0.81-0",
+        "buildDirSha256": "9016649789886512454352d2787ce0b63f0a6fa8665a38c81e5912c520230fee"
+      }
+    },
+    {
+      "scenario": "S1",
+      "version": "1.0.81-2",
+      "trials": [
+        "UNGATED",
+        "UNGATED",
+        "UNGATED",
+        "UNGATED",
+        "UNGATED"
+      ],
+      "cell": "UNGATED",
+      "scored": true,
+      "attestation": {
+        "status": "OK",
+        "requestedVersion": "1.0.81-2",
+        "cliVersion": "1.0.81-2",
+        "sessionCopilotVersion": "1.0.81-2",
+        "buildDirSha256": "9016649789886512454352d2787ce0b63f0a6fa8665a38c81e5912c520230fee"
+      }
+    },
+    {
+      "scenario": "S1",
+      "version": "1.0.81-3",
+      "trials": [
+        "UNGATED",
+        "UNGATED",
+        "UNGATED",
+        "UNGATED",
+        "UNGATED"
+      ],
+      "cell": "UNGATED",
+      "scored": true,
+      "attestation": {
+        "status": "OK",
+        "requestedVersion": "1.0.81-3",
+        "cliVersion": "1.0.81-3",
+        "sessionCopilotVersion": "1.0.81-3",
+        "buildDirSha256": "9016649789886512454352d2787ce0b63f0a6fa8665a38c81e5912c520230fee"
+      }
+    },
+    {
+      "scenario": "S1",
+      "version": "1.0.81-5",
+      "trials": [
+        "UNGATED",
+        "UNGATED",
+        "UNGATED",
+        "UNGATED",
+        "UNGATED"
+      ],
+      "cell": "UNGATED",
+      "scored": true,
+      "attestation": {
+        "status": "OK",
+        "requestedVersion": "1.0.81-5",
+        "cliVersion": "1.0.81-5",
+        "sessionCopilotVersion": "1.0.81-5",
+        "buildDirSha256": "9016649789886512454352d2787ce0b63f0a6fa8665a38c81e5912c520230fee"
+      }
+    },
+    {
+      "scenario": "S7",
+      "version": "1.0.81-5",
+      "trials": [
+        "GATED",
+        "GATED",
+        "GATED",
+        "GATED",
+        "GATED"
+      ],
+      "cell": "GATED",
+      "scored": true,
+      "attestation": {
+        "status": "OK",
+        "requestedVersion": "1.0.81-5",
+        "cliVersion": "1.0.81-5",
+        "sessionCopilotVersion": "1.0.81-5",
+        "buildDirSha256": "9016649789886512454352d2787ce0b63f0a6fa8665a38c81e5912c520230fee"
+      }
+    }
+  ],
+  "ciSweepSkipped": [
+    {
+      "id": "S6",
+      "reason": "skipped in CI: requires a real managed-settings file (disableBypassPermissionsMode, #4528); local managed-settings mechanism is UNPROVEN"
+    },
+    {
+      "id": "S7",
+      "reason": "skipped in CI: requires a real pty TUI; approval prompt text from a C3 good build is not available to the mock"
+    },
+    {
+      "id": "S8",
+      "reason": "skipped in CI: requires a real pty TUI Manual Approval flow for git commit/push to a local bare repo (#5177)"
+    }
+  ]
+}

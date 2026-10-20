@@ -1,0 +1,8 @@
+| scenario | version | cell |
+| --- | --- | --- |
+| S1 | 1.0.80 | GATED |
+| S1 | 1.0.81-0 | GATED |
+| S1 | 1.0.81-2 | UNGATED |
+| S1 | 1.0.81-3 | UNGATED |
+| S1 | 1.0.81-5 | UNGATED |
+| S7 | 1.0.81-5 | GATED |

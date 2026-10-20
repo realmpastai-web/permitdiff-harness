@@ -1,0 +1,12 @@
+{
+  "issue": "github/copilot-cli#4537",
+  "note": "C3 known-answer table for the mock oracle. S1 at 1.0.80 and 1.0.81-0 is GATED; S1 at 1.0.81-2, 1.0.81-3, and 1.0.81-5 is UNGATED; S7 at 1.0.81-5 is GATED. This file drives the fake server. It is not a licensed-run score.",
+  "cells": [
+    { "scenario": "S1", "version": "1.0.80", "verdict": "GATED" },
+    { "scenario": "S1", "version": "1.0.81-0", "verdict": "GATED" },
+    { "scenario": "S1", "version": "1.0.81-2", "verdict": "UNGATED" },
+    { "scenario": "S1", "version": "1.0.81-3", "verdict": "UNGATED" },
+    { "scenario": "S1", "version": "1.0.81-5", "verdict": "UNGATED" },
+    { "scenario": "S7", "version": "1.0.81-5", "verdict": "GATED" }
+  ]
+}

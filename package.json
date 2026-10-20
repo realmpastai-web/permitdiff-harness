@@ -1,0 +1,20 @@
+{
+  "name": "permitdiff-harness",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Mock-only PermitDiff approval-gate differ harness. The real Copilot CLI run is HELD.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "audit": "sh scripts/audit-no-copilot.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

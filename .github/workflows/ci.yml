@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: install dev dependencies
+        run: npm ci
+
+      - name: typecheck
+        run: npx tsc --noEmit
+
+      - name: audit copilot absence
+        run: sh scripts/audit-no-copilot.sh
+
+      - name: test
+        run: npx vitest run
+
+      - name: artifacts match SHA256SUMS
+        run: git diff --exit-code -- SHA256SUMS artifacts
+
+      - name: docker build
+        run: docker build -t permitdiff-harness:ci .
+
+      - name: S1 mock trial in container
+        run: docker run --network none --rm permitdiff-harness:ci ./node_modules/.bin/vitest run tests/r3-s1-container.test.ts
+
+      - name: audit built image
+        run: docker run --network none --rm --entrypoint sh permitdiff-harness:ci scripts/audit-no-copilot.sh
