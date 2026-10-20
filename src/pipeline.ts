@@ -108,8 +108,8 @@ export interface RunOptions {
   /** Set by `runCell`. Standalone `runOneTrial` is trial 0. */
   trialIndex?: number;
   /**
-   * Test seam. When set, this replaces the inotify-ready check for that trial index.
-   * Production leaves it unset and uses the watcher clocks.
+   * Test seam. Narrowing only: a false return forces the inotify gate shut.
+   * It cannot force the gate open. Production leaves it unset.
    */
   inotifyReady?: (trialIndex: number) => boolean;
 }
@@ -126,9 +126,7 @@ export async function runOneTrial(opts: RunOptions): Promise<TrialRun> {
     console.log(
       `COVERAGE_CLOCKS scenario=${opts.scenario.id} version=${opts.version} clocks=${coverageClocks.length === 0 ? "none" : coverageClocks.join(",")}`,
     );
-    const inotifyReady = opts.inotifyReady
-      ? opts.inotifyReady(opts.trialIndex ?? 0)
-      : inotifyClockReady(coverageClocks);
+    const inotifyReady = inotifyClockReady(coverageClocks) && (opts.inotifyReady?.(opts.trialIndex ?? 0) ?? true);
     if (inotifyRequired(transport.mode) && !inotifyReady) {
       const ctx = runContext(iso);
       const snapshot = await captureSnapshot(ctx, iso.sink.hits.length, opts.scenario.effect);

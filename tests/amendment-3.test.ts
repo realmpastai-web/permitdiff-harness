@@ -1,3 +1,5 @@
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadKnownAnswerFixture } from "../src/fixture";
@@ -8,6 +10,22 @@ import { MockTransport, type Transport } from "../src/transport";
 
 const buildDir = path.join(process.cwd(), "fixtures");
 const missingInotify = path.join(buildDir, "missing-inotifywait");
+
+async function fakeInotifywait(): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), "permitdiff-inotify-"));
+  const bin = path.join(dir, "inotifywait");
+  await writeFile(
+    bin,
+    `#!/usr/bin/env node
+if (process.argv.includes("--help")) process.exit(0);
+process.stderr.write("Watches established.\\n");
+setInterval(() => {}, 1 << 30);
+process.on("SIGTERM", () => process.exit(0));
+`,
+  );
+  await chmod(bin, 0o755);
+  return bin;
+}
 
 function withInotifyRequired<T>(run: () => Promise<T>): Promise<T> {
   const previous = process.env.PERMITDIFF_REQUIRE_INOTIFY;
@@ -70,6 +88,7 @@ describe("Amendment 3 VOID early stop", () => {
         return inner.start(request);
       },
     };
+    const inotifyBin = await fakeInotifywait();
     const cell = await withInotifyRequired(() =>
       runCell({
         scenario: s1,
@@ -79,6 +98,7 @@ describe("Amendment 3 VOID early stop", () => {
         policy: "reject_once",
         transport,
         trials: 5,
+        inotifyBin,
         inotifyReady: (trialIndex) => {
           seen.push(trialIndex);
           return trialIndex < k - 1;
@@ -102,6 +122,41 @@ describe("Amendment 3 VOID early stop", () => {
     expect(cell.attestation.status).toBe("VOID");
     expect(report.trialsRun).toBe(k);
     expect(JSON.stringify(report)).toContain(`"trialsRun":${k}`);
+  });
+
+  it("does not let inotifyReady force the gate open when inotifywait is absent", async () => {
+    let started = 0;
+    const transport: Transport = {
+      mode: "mock",
+      start: async () => {
+        started += 1;
+        throw new Error("session must not start");
+      },
+    };
+    const cell = await withInotifyRequired(() =>
+      runCell({
+        scenario: s1,
+        version: "1.0.80",
+        fixture: loadKnownAnswerFixture(),
+        buildDir,
+        policy: "reject_once",
+        transport,
+        inotifyBin: missingInotify,
+        inotifyReady: () => true,
+        trials: 5,
+      }),
+    );
+    expect(cell.kind).toBe("ran");
+    if (cell.kind !== "ran") return;
+    console.log(
+      `NARROW_ONLY verdict=${cell.trials[0]?.verdict} reason=${cell.trials[0]?.reasonCodes.join(",")} started=${started} scored=${cell.scored} trialsRun=${cell.trialsRun}`,
+    );
+    expect(cell.trials[0]?.verdict).toBe("VOID");
+    expect(cell.trials[0]?.reasonCodes).toEqual(["VOID_NO_INOTIFY"]);
+    expect(started).toBe(0);
+    expect(cell.scored).toBe(false);
+    expect(cell.cell).toBe("VOID");
+    expect(cell.trialsRun).toBe(1);
   });
 
   it("omits trialsRun from a known-answer cell that is not VOID", () => {

@@ -12,4 +12,6 @@ Hark's nit on the merged Amendment 2 change: "N1 runCell keeps running all N tri
 
 `trialsRun` is the number of trials actually started for that cell, including the VOID trial that stopped the loop. `run.json` includes `trialsRun` on VOID cells and on real or `PERMITDIFF_REQUIRE_INOTIFY=1` reports. Known-answer mock cells have no VOID trials and are not required-mode reports, so they omit the field. `artifacts/run.json` and `artifacts/c3-table.txt` stay byte-identical.
 
+The `inotifyReady` seam is narrowing-only: it can force not-ready, and it can never force the gate ready.
+
 This rule is not in `docs/PREDICTIONS-v2.txt`. `RealCliTransport` remains HELD.
